@@ -1,0 +1,41 @@
+# ── Python ──────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+
+# ── Virtual Environment ────────────────────────────────
+venv/
+env/
+.venv/
+.env/
+
+# ── FAISS Index (regenerated from PDFs) ────────────────
+faiss_index/
+
+# ── PDFs (user-uploaded, not tracked) ──────────────────
+pdfs/*
+!pdfs/.gitkeep
+
+# ── IDE / Editor ───────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── OS Files ───────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Environment Variables ──────────────────────────────
+.env
+*.env
+
+# ── Streamlit ──────────────────────────────────────────
+.streamlit/
