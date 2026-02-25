@@ -33,17 +33,27 @@ def build_index(embeddings: np.ndarray) -> faiss.IndexFlatL2:
     faiss.IndexFlatL2
     """
     dim = embeddings.shape[1]
+    print(f"\n{'─'*60}")
+    print(f"🔨 Building FAISS index (L2, dim={dim}, vectors={embeddings.shape[0]})")
+    print(f"{'─'*60}")
     index = faiss.IndexFlatL2(dim)
     index.add(embeddings)
+    print(f"  ✅ Index built with {index.ntotal} vectors")
     return index
 
 
 def save_index(index: faiss.IndexFlatL2, metadata: List[Dict]) -> None:
     """Persist the FAISS index and chunk metadata to disk."""
+    print(f"\n💾 Saving index to disk ...")
     os.makedirs(FAISS_DIR, exist_ok=True)
     faiss.write_index(index, INDEX_FILE)
     with open(METADATA_FILE, "wb") as f:
         pickle.dump(metadata, f)
+    print(f"  ✅ Saved: {INDEX_FILE}")
+    print(f"  ✅ Saved: {METADATA_FILE}")
+    print(f"\n{'='*60}")
+    print(f"🎉 INGESTION COMPLETE!")
+    print(f"{'='*60}\n")
 
 
 def load_index() -> Tuple[faiss.IndexFlatL2, List[Dict]]:

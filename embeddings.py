@@ -69,9 +69,16 @@ def get_embeddings_batch(texts: List[str]) -> np.ndarray:
     np.ndarray
         2-D array of shape ``(len(texts), embedding_dim)``.
     """
+    print(f"\n{'─'*60}")
+    print(f"🧮 Generating embeddings for {len(texts)} chunks")
+    print(f"{'─'*60}")
+
     embeddings = []
-    for text in texts:
+    for i, text in enumerate(texts, 1):
+        print(f"  ⚡ Embedding chunk {i}/{len(texts)} ...", end=" ", flush=True)
         emb = get_embedding(text)
         embeddings.append(emb)
+        print(f"✅ (dim={len(emb)})")
 
+    print(f"\n✅ All {len(texts)} embeddings generated!")
     return np.array(embeddings, dtype="float32")

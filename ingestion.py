@@ -28,13 +28,22 @@ def load_pdfs(directory: str = PDF_DIR) -> List[Dict[str, str]]:
     documents: List[Dict[str, str]] = []
     pdf_paths = glob.glob(os.path.join(directory, "*.pdf"))
 
+    print(f"\n{'='*60}")
+    print(f"📂 Scanning for PDFs in: {directory}")
+    print(f"{'='*60}")
+
     if not pdf_paths:
+        print("❌ No PDF files found!")
         raise FileNotFoundError(
             f"No PDF files found in '{directory}'. "
             "Please add at least one PDF to the pdfs/ folder."
         )
 
-    for path in sorted(pdf_paths):
+    print(f"📄 Found {len(pdf_paths)} PDF(s)\n")
+
+    for i, path in enumerate(sorted(pdf_paths), 1):
+        filename = os.path.basename(path)
+        print(f"  [{i}/{len(pdf_paths)}] Reading: {filename} ...", end=" ", flush=True)
         reader = PdfReader(path)
         pages_text: List[str] = []
         for page in reader.pages:
@@ -44,10 +53,14 @@ def load_pdfs(directory: str = PDF_DIR) -> List[Dict[str, str]]:
         full_text = "\n".join(pages_text)
         if full_text.strip():
             documents.append({
-                "source": os.path.basename(path),
+                "source": filename,
                 "text": full_text,
             })
+            print(f"✅ {len(reader.pages)} pages, {len(full_text)} chars")
+        else:
+            print(f"⚠️  No extractable text (skipped)")
 
+    print(f"\n📝 Total documents loaded: {len(documents)}")
     return documents
 
 
@@ -99,8 +112,13 @@ def ingest(directory: str = PDF_DIR) -> List[Dict]:
     all_chunks: List[Dict] = []
     chunk_id = 0
 
+    print(f"\n{'─'*60}")
+    print(f"✂️  Chunking documents (size={CHUNK_SIZE}, overlap={CHUNK_OVERLAP})")
+    print(f"{'─'*60}")
+
     for doc in documents:
         chunks = chunk_text(doc["text"])
+        print(f"  📄 {doc['source']}: {len(chunks)} chunks")
         for c in chunks:
             all_chunks.append({
                 "text": c,
@@ -109,4 +127,5 @@ def ingest(directory: str = PDF_DIR) -> List[Dict]:
             })
             chunk_id += 1
 
+    print(f"\n📊 Total chunks created: {len(all_chunks)}")
     return all_chunks
