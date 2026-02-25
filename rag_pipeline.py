@@ -10,8 +10,8 @@ Uses a **RAG-first** answering strategy:
   3. ONLY if the knowledge base has NO relevant context → fall back
      to the model's own training data.
 
-This ensures the uploaded documents are always the primary source
-of truth for answering questions.
+Similarity is measured via **cosine similarity** (0.0–1.0).
+Higher scores = more relevant.
 """
 
 from typing import List, Dict, Generator, Tuple
@@ -88,18 +88,21 @@ class PhiNderPipeline:
         Returns
         -------
         list[dict]
-            Each dict has ``text``, ``source``, ``chunk_id``, ``distance``.
+            Each dict has ``text``, ``source``, ``chunk_id``,
+            ``similarity`` (cosine, 0–1).
         """
         self._ensure_index()
 
         q_emb = np.array(get_embedding(question), dtype="float32")
-        indices, distances = search(self.index, q_emb, top_k)
+        indices, similarities = search(self.index, q_emb, top_k)
 
         results = []
-        for idx, dist in zip(indices, distances):
+        for idx, sim in zip(indices, similarities):
             if 0 <= idx < len(self.metadata):
                 entry = dict(self.metadata[idx])
-                entry["distance"] = float(dist)
+                entry["similarity"] = float(sim)
+                # Keep "distance" key for backward compat with UI
+                entry["distance"] = float(sim)
                 results.append(entry)
 
         return results
@@ -112,33 +115,48 @@ class PhiNderPipeline:
         Return ``True`` if the retrieved chunks are relevant enough
         to answer the question from the RAG knowledge base.
 
-        **RAG-first strategy:** This method is intentionally permissive.
-        We use BOTH the best distance AND the average distance of the
-        top chunks to decide relevance. RAG is preferred whenever
-        there is *any* reasonable match in the knowledge base.
+        **Cosine similarity** is used:
+          - 1.0 = identical
+          - 0.0 = completely unrelated
 
-        Uses the *best* (smallest) L2 distance among the top-k
-        chunks and compares against ``RELEVANCE_THRESHOLD``.
+        **RAG-first strategy:** We use a LOW threshold (default 0.3)
+        so that RAG is preferred whenever there is *any* reasonable
+        match in the knowledge base.
         """
         if not context_chunks:
             return False
 
-        best_distance = min(c["distance"] for c in context_chunks)
+        similarities = [c["similarity"] for c in context_chunks]
+        best_sim = max(similarities)
+        avg_sim = sum(similarities) / len(similarities)
 
-        # Primary check: if the best chunk is within threshold → RAG
-        if best_distance <= RELEVANCE_THRESHOLD:
+        # ── Debug logging (visible in terminal) ──────────────
+        print(f"\n{'─'*60}")
+        print(f"🔎 RELEVANCE CHECK (Cosine Similarity)")
+        print(f"   Threshold (min)  : {RELEVANCE_THRESHOLD}")
+        print(f"   Best similarity  : {best_sim:.4f}")
+        print(f"   Avg similarity   : {avg_sim:.4f}")
+        print(f"   All similarities : {[f'{s:.4f}' for s in similarities]}")
+        for i, c in enumerate(context_chunks):
+            print(f"   Chunk {i}: sim={c['similarity']:.4f}  src={c['source']}  text={c['text'][:80]}...")
+        print(f"{'─'*60}")
+
+        # Primary check: if the best chunk meets threshold → RAG
+        if best_sim >= RELEVANCE_THRESHOLD:
+            print(f"   ✅ USING RAG (best similarity {best_sim:.4f} >= {RELEVANCE_THRESHOLD})")
             return True
 
-        # Secondary check: if at least 2 chunks have reasonable
-        # distances (within 1.5x threshold), the query likely has
-        # partial coverage in the knowledge base → still use RAG
-        moderate_threshold = RELEVANCE_THRESHOLD * 1.5
-        moderate_matches = sum(
-            1 for c in context_chunks if c["distance"] <= moderate_threshold
+        # Secondary: if at least 2 chunks are above half the threshold
+        # then collectively they likely cover the question
+        half_threshold = RELEVANCE_THRESHOLD * 0.5
+        partial_matches = sum(
+            1 for c in context_chunks if c["similarity"] >= half_threshold
         )
-        if moderate_matches >= 2:
+        if partial_matches >= 2:
+            print(f"   ✅ USING RAG ({partial_matches} chunks above {half_threshold:.2f})")
             return True
 
+        print(f"   ❌ FALLING BACK TO MODEL (best similarity {best_sim:.4f} < {RELEVANCE_THRESHOLD})")
         return False
 
     # ── Query (RAG-first with model fallback) ────────────
